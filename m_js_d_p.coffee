@@ -14,7 +14,7 @@ after = (ms, fn) -> setTimeout(fn, ms)
 # modules
 # attach an object to the global namespace
 
-Westeros = {}
+# Westeros = {}
 # or better
 Westeros = Westeros or {}
 
@@ -129,10 +129,11 @@ TournamentBuilder::build = (builder) ->
 Westeros.TournamentBuilder = TournamentBuilder
 
 tournamentB = new Westeros.TournamentBuilder()
+log tournamentB
 theTournament = tournamentB.build(new Westeros.LanisterTournamentBuilder())
 log theTournament
 
-# Factory Method
+# Factory Method   *****************************************   *******************************************
 
 religion = require './religion'
 {watery} = require './religion'
@@ -146,7 +147,7 @@ GodFactory::build = (godName) ->
   if godName is 'watery'
     new religion.watery()
   else if godName is 'ancient'
-    new religion.AncientGods()
+    new religion.ancient()
   else
     new religion.DefaultGods()
 
@@ -155,38 +156,80 @@ class GodDeterminant
 
 class Prayer
 Prayer::pray = (godName) ->
-  GodFactory.build(godName).prayTo()
+  p = new GodFactory
+  p.build(godName).prayTo()
 
 
 god = new GodFactory
 asia = god.build('watery')
+log asia
+log asia.name()
+euroasia = god.build('ancient')
 
 log asia.prayTo()
+log euroasia.prayTo()
+
+prejer = new Prayer
+prejer.pray('watery')
 
 # polish book example
 
 class CarMaker
+
 CarMaker::drive = ->
-  "Brum, I have #{@doors} doors"
+  log "Brum, I have #{@doors} doors"
 CarMaker.factory = (type) ->
   constr = type
-  if typeof Carmaker[constr] isnt "function"
+  if typeof CarMaker[constr] isnt "function"
     throw
-      {name: 'Error', message: "#{constr} nie istnieje"}
+      # {name: 'Error', message: "#{constr} nie istnieje"}
+      log "Error #{constr} nie istnieje"
   if typeof CarMaker[constr]::drive isnt "function"
-    CarMaker[constr].prototype = new Carmaker
+    CarMaker[constr].prototype = new CarMaker
   newCar = new CarMaker[constr]
   newCar
 
 CarMaker.Compact = ->
   @doors = 4
 CarMaker.SUV = ->
-  @doors = 5
+  @doors = 7
 
 
+log CarMaker
+auto = new CarMaker
+auto_2 = CarMaker
+log "to jest auto: #{auto}"
+log "to jest auto_2: #{auto_2}"
+
+for i,v of auto
+  log i, " :: ", v
+
+for i,v of auto_2
+  log i, " :: ", v
+
+corolla = CarMaker.factory('Compact')
+log corolla
+corolla.drive()
+# expedition = new CarMaker.factory('suv')
+f150 = auto_2.factory('SUV')
+f150.drive()
+
+o = new Object()
+n = new Object(1)
+s = Object('1')
+b = Object(true)
+
+log o.constructor is Object
+log n.constructor is Number
+log s.constructor is String
+log b.constructor is Boolean
+
+
+#   *************************************************   **************************************************
 clone = (source, destination) ->
   for attr of source.prototype
     destination.prototype[attr] = source.prototype[attr]
+#   *************************************************   **************************************************
 
 
 # Adapter pattern
