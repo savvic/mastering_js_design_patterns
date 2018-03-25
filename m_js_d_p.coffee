@@ -1,5 +1,12 @@
 # Mastering JS design patterns
 
+# single responsibility principle
+# ensure that each class has only one thing for which it has some responsibility
+
+# class that looks up users from a database should itself not contain functionality to send e-mails to these users.
+# That is too much responsibility.
+# Complex adapters can be replaced with a composite object that will be explored later in this chapter.
+
 log = console.log.bind(console)
 fs = require 'fs'
 numFile = './numbers.txt'
@@ -14,12 +21,16 @@ after = (ms, fn) -> setTimeout(fn, ms)
 # modules
 # attach an object to the global namespace
 
+# Creational Patterns   **************************************************************************************
+
 # Westeros = {}
 # or better
 Westeros = Westeros or {}
 
 class Castle
   constructor: (@name) ->
+
+# słowo kluczowe new, które tworzy obiekty na podstawie funkcji konstruujących
 
 Westeros.Castle = Castle
 Westeros.castle = new Westeros.Castle('castle tomek')
@@ -108,9 +119,9 @@ class Tournament
 
 Westeros.Tournament = Tournament
 
-class LanisterTournamentBuilder
+class LannisterTournamentBuilder
 
-LanisterTournamentBuilder::build = ->
+LannisterTournamentBuilder::build = ->
   tournament = new Tournament
   tournament.events.push new Event('Joust')
   tournament.events.push new Event('Melee')
@@ -119,7 +130,7 @@ LanisterTournamentBuilder::build = ->
   tournament.prizes.push new Prize('silver medal')
   log tournament
 
-Westeros.LanisterTournamentBuilder = LanisterTournamentBuilder
+Westeros.LannisterTournamentBuilder = LannisterTournamentBuilder
 
 class TournamentBuilder
 
@@ -130,7 +141,7 @@ Westeros.TournamentBuilder = TournamentBuilder
 
 tournamentB = new Westeros.TournamentBuilder()
 log tournamentB
-theTournament = tournamentB.build(new Westeros.LanisterTournamentBuilder())
+theTournament = tournamentB.build(new Westeros.LannisterTournamentBuilder())
 log theTournament
 
 # Factory Method   *****************************************   *******************************************
@@ -225,43 +236,127 @@ log s.constructor is String
 log b.constructor is Boolean
 
 
-#   *************************************************   **************************************************
+# Prototype pattern page 79
+
+#   *************************************************   ***************************************************
+#   Copying existing objects
+
 clone = (source, destination) ->
   for attr of source.prototype
     destination.prototype[attr] = source.prototype[attr]
-#   *************************************************   **************************************************
+
+cloneCoffee = (s,d) ->
+  for attr of s::
+    d::attr = s::attr
+#   *************************************************   ***************************************************
+
+class Lannister
+  Lannister::clone = ->
+    clone = new Lannister
+    for attr of @
+      clone[attr] = @[attr]
+    clone
+
+jamie = new Lannister
+jamie.swordSkills = 9
+jamie.charm = 6
+jamie.wealth = 10
+tyrion = jamie.clone()
+tyrion.charm = 10
+
+log "tyrion wealth is cloned and = #{tyrion.wealth}"
 
 
-# Adapter pattern
+# Singleton book pl str 139
+
+
+Universe1 = -> # class Universe
+  return Universe1.instance if typeof Universe1.instance is 'object'
+  @start_time = 0
+  @big_bang = 'wielki'
+  Universe1.instance = @
+
+uni1 = new Universe1
+uni2 = new Universe1
+log "uni1 is uni2 #{uni1 is uni2}"
+log Universe1.instance
+log Universe1
+
+Universe2 = ->
+  instance = @
+  @start_time = 1
+  @big_bang = 'duży'
+  Universe2 = ->
+    return instance
+
+# uni5 = new Universe2 - # drugie i następne wywołania wykonują już zmieniony konstruktor
+# jest to wzorzec samomodyfikującej się funkcji :: WADA :: nadpisana funkcja utraci wszystkie właściwości
+# dodane między jej zdefiniowaniem i nadpisaniem
+uni3 = new Universe2
+uni4 = new Universe2
+log "uni3 is uni4 #{uni3 is uni4}"
+
+# Universe3 = ->
+#   Universe3 = -> instance
+#   Universe3.prototype = @
+#   instance = new Universe3
+#   instance.constructor = Universe3
+#   instance.start_time = 2
+#   instance.big_bang = 'ogromny'
+#   instatnce
+
+# Universe3::nothing = true
+# uni6 = new Universe3
+# Universe3::everything = true
+# uni7 = new Universe3
+# log "uni6 is uni7 #{uni6 is uni7}"
+
+
+
+# Structural Patterns   *************************************   simple ways in which objects can interact
+
+# Adapter pattern   *****************************************  p.84  *******************************************
+
+# We may need to make use of a class that does not perfectly fit the required interface.
+# The class may be missing methods or may have additional methods we would like to hide.
+# When building library code, adapters can be used to mask the internal method and only present the limited functions needed by the end user.
+# ShipAdapter is simplified version of Ship interface
 
 class Ship
-  SetRudderAngleTo: (angle) ->
-    log angle
+  SetRudderAngleTo: (angle) -> log angle
   SetSailConfiguration: (configuration) ->
-  SetSailAngle: (sailId, sailAngle) ->
+  SetSailAngle: (sailId, sailAngle) -> log sailId, sailAngle
   GetCurrentBearing: () -> 7
   GetCurrentSpeedEstimate: () -> 7
   ShiftCrewWeightTo: (weightToShift, locationId) ->
 
+ShipAdapter = do ->
+  class ShipAdapter
+    constructor: (ship) ->
+      @ship = new Ship
 
-class ShipAdapter
-  constructor: (ship) ->
-    @ship = new Ship
+    TurnLeft: () ->
+      @ship.SetRudderAngleTo(-30)
+      @ship.SetSailAngle(3, 12)
 
-  TurnLeft: () ->
-    @ship.SetRudderAngleTo(-30)
-    @ship.SetSailAngle(3, 12)
+    TurnRight: () ->
+      @ship.SetRudderAngleTo(30)
+      @ship.SetSailAngle(5, -9)
 
-  TurnRight: () ->
-    @ship.SetRudderAngleTo(30)
-    @ship.SetSailAngle(5, -9)
+  ShipAdapter::GoForward = () -> log "ship goes forward"
+  ShipAdapter
 
-  GoForward: () ->
 
 ship = new ShipAdapter
-log ship.TurnLeft()
+ship.GoForward()
+log ship.TurnRight()
 
-# Bridge pattern
+for i,v of ship
+  log i, " :: ", v
+
+
+# Bridge pattern   *****************************************  p.88  *******************************************
+
 
 class OldGods
 OldGods::prayTo = (sacrifice) ->
@@ -298,7 +393,8 @@ for god in gods
   god.prayTo()
 
 
-# Composite Pattern
+# Composite Pattern   *****************************************   *******************************************
+
 
 class SimpleIngredient
   constructor: (@name, @calories, @ironContent, @vitaminContent) ->
@@ -353,7 +449,8 @@ ricePudding.getArr()
 
 log "A serving of rice pudding contains: #{ricePudding.GetCalories()} calories"
 
-# Decorator Pattern
+# Decorator Pattern   *****************************************   *******************************************
+
 
 
 
