@@ -1007,9 +1007,386 @@ ag.current()
 
 # Mediator Pattern   *****************************************   *******************************************
 
+# str 160 PL
+
+# ma za zadanie promować luźne powiązania obiektów i wspomóc przyszłą konserwację kodu.
+# niezależne obiekty (koledzy) nie komunikują się ze sobą bezpośrednio, ale korzystają z obiektu mediatora.
+# Gdy jeden z kolegów zmieni stan, informuje o tym mediator, a ten przekazuje tę informację wszystkim innym zainteresowanym kolegom.
+
+# Mediator wie o wszystkich obiektach. Komunikuje się z urządzeniem wejściowym (klawiaturą),
+# obsługuje naciśnięcia klawiszy, określa, który gracz jest aktywny, i informuje o zmianach
+# wyników. Gracz jedynie gra (czyli aktualizuje swój własny wynik) i informuje
+# mediator o tym zdarzeniu. Mediator informuje tablicę o zmianie wyniku, a ta aktualizuje
+# wyświetlaną wartość. Poza mediatorem żaden inny obiekt nie wie nic o pozostałych.
+
+# # GRA:
+
+readline = require('readline')
+readline.emitKeypressEvents(process.stdin)
+process.stdin.setRawMode(true)
+
+# Obiekty graczy są tworzone przy użyciu konstruktora Player() i zawierają własne właściwości
+# points i name. Metoda play() z prototypu zwiększa liczbę punktów o jeden i informuje
+# o tym fakcie mediator.
+
+class Player
+  constructor: (@name, points) ->
+    @points = 0
+Player::play = ->
+  @points += 1
+  mediator.played()
+
+# Obiekt scoreboard zawiera metodę update() wywoływaną przez mediator po zdobyciu
+# punktu przez jednego z graczy. Tablica nie wie nic o graczach i nie przechowuje wyniku —
+# po prostu wyświetla informacje przekazane przez mediator.
+
+scoreboard =
+  update: (score) ->
+    for own i,v of score
+      log i,": ", v
+
+# Obiekt mediatora odpowiada za inicjalizację gry oraz utworzenie obiektów graczy
+# w metodzie setup() i śledzenie ich poczynań dzięki umieszczeniu ich we właściwości players.
+# Metoda played() zostaje wywołana przez każdego z graczy po wykonaniu akcji. Aktualizuje ona
+# wynik (score) i przesyła go do tablicy (scoreboard). Ostatnia metoda, keypress(), obsługuje
+# zdarzenia klawiatury, określa, który gracz jest aktywny, i powiadamia go o wykonanej akcji.
+
+mediator =
+  players: {}
+  setup: ->
+    players = @players
+    players.home = new Player('Gospodarze')
+    players.guest = new Player('Goście')
+  # ktoś zagrał, uaktualnij wynik
+  played: ->
+    players = @players
+    score =
+      "Gospodarze": players.home.points
+      "Goście": players.guest.points
+    scoreboard.update(score)
+  # obsługa interakcji z użytkownikiem
+  keypress: (key) ->
+    if key is '1'
+      mediator.players.home.play()
+    if key is '0'
+      mediator.players.guest.play()
+
+# # start!
+# mediator.setup()
+# process.stdin.on 'keypress', (key) ->  mediator.keypress(key)
+# # gra kończy się po 5 sekundach
+# after 2500, () ->
+#   log "koniec gry: Goście #{mediator.players.guest.points} :: Gospodarze #{mediator.players.home.points}"
+#   process.exit()
+
+
+# page 122
+
+# many-to-many relationships
+# mediators are best used when the communication is both complex and well defined
+# if the communication is not complex, then the mediator adds extra complexity.
+# if the communication is ill defined, then it becomes difficult to codify the communication rules in a single place.
+
+class Karstark
+  constructor: (@greatLord) ->
+Karstark::receiveMessage = (message) ->
+Karstark::sendMessage = (message) ->
+  @greatLord.routeMessage(message)
+
+class Bolton
+  constructor: (@greatLord) ->
+Bolton::receiveMessage = (message) ->
+Bolton::sendMessage = (message) ->
+  @greatLord.routeMessage(message)
+
+# mediator
+class HouseStark
+  constructor: (karstark, bolton, frey, umber) ->
+    @karstark = new Karstark(@)
+    @bolton = new Bolton(@)
+HouseStark::receiveMessage = (message) ->
+
+
+# Memento Pattern   *****************************************   *******************************************
+
+# This world state is used to track all the conditions that make up the world and encompasses the whole state for the application, it can be used as a memento.
+class WorldState
+  constructor: (@numberOfKings, @currentKingInKingsLanding, @season) ->
+
+# provides the same state as the memento and allows for the creation and restoration of mementos
+class WorldStateProvider
+WorldStateProvider::saveMemento = ->
+  return new WorldState(@numberOfKings, @currentKingInKingsLanding, @season)
+WorldStateProvider::restoreMemento = (memento) ->
+  @numberOfKings = memento.numberOfKings
+  @currentKingInKingsLanding = memento.currentKingInKingsLanding
+  @season = memento.season
+
+class Soothsayer
+  constructor: (startingPoints, currentState) ->
+    @startingPoints = []
+    @currentState = new WorldStateProvider
+Soothsayer::setInitialConditions = (numberOfKings, currentKingInKingsLanding, season) ->
+  @currentState.numberOfKings = numberOfKings
+  @currentState.currentKingInKingsLanding = currentKingInKingsLanding
+  @currentState.season = season
+Soothsayer::alterNumberOfKingsAndForetell = (numberOfKings) ->
+  @startingPoints.push(@currentState.saveMemento())
+  @currentState.numberOfKings = numberOfKings
+Soothsayer::alterSeasonAndForetell = (season) -> log 4
+Soothsayer::alterCurrentKingInKingsLandingAndForetell = (currentKingInKingsLanding) -> log 'T'
+Soothsayer::tryADifferentChange = -> @currentState.restoreMemento(@startingPoints.pop())
+
+
+# Observer Pattern   *****************************************   *******************************************
+
+
+class GetterSetter
+GetterSetter::getProperty = ->
+  @_property
+# setter function augmented with a call to some other object that is interested in knowing that a value has changed
+GetterSetter::setProperty = (value) ->
+  temp = @_property
+  @_property = value
+  @_listener.Event(value, temp)
+
+
+class Spy
+  constructor: (_partiesToNotify) ->
+    @_partiesToNotify = []
+Spy::subscribe = (subscriber) ->
+  @_partiesToNotify.push(subscriber)
+  log "parites to Notify: #{@_partiesToNotify}"
+Spy::unSubscribe = (subscriber) ->
+  @_partiesToNotify.remove(subscriber)
+Spy::SetPainKillers = (painKillers) ->
+  @_painKillers = painKillers
+  for party in @_partiesToNotify
+    party(painKillers)
+
+class Playa
+Playa::onKingsMedsAmountChange = (painKillerAmount) -> log "new Amount of pain Killers is: #{painKillerAmount}"
+
+sp = new Spy
+pl = new Playa
+# observer pattern can also be applied to methods as well as properties
+sp.subscribe(pl.onKingsMedsAmountChange)
+sp.SetPainKillers(12)
+
+
+# Observer in jQuery library:
+# Subscribe to all the click events on buttons on a page with the following line:
+#   $("body").on("click", "button", function(){/*do something*/})
+# Even in Vanilla JavaScript, the same pattern applies:
+#   buttons = document.getElementsByTagName("button")
+#   for btn in buttons
+#     btn.onclick = -> log 'button clicked'
+
+
+# strona 163 PL
+
+# celem używania wzorca jest promowanie luźnego powiązania elementów.
+# Zamiast sytuacji, w której jeden obiekt wywołuje metodę drugiego, mamy sytuację, w której drugi
+# z obiektów zgłasza chęć otrzymywania powiadomień o zmianie w pierwszym obiekcie
+# Subskrybenta nazywa się często obserwatorem, a obiekt obserwowany obiektem publikującym lub źródłem
+# Obiekt publikujący wywołuje subskrybentów po zajściu istotnego zdarzenia i przekazuje informację w postaci np. obiektu zdarzenia
+
+# paper publikuje gazetę codzienną i miesięcznik
+# subscribers tablica przechowującą wszystkich subskrybentów
+# Gdy zajdzie istotne zdarzenie, obiekt paper przejdzie w pętli przez wszystkich subskrybentów, by ich o nim powiadomić.
+# Notyfikacja polega na wywołaniu metody obiektu subskrybenta = w momencie zgłoszenia chęci otrzymywania powiadomień
+# subskrybent musi przekazać obiektowi paper jedną ze swoich metod w wywołaniu metody subscribe()
+# paper może dodatkowo umożliwić anulowanie subskrypcji, czyli usunięcie wpisu z tablicy subskrybentów
+# istotną metodą obiektu paper jest publish(), która wywołuje metody subskrybentów.
+
+# • subscribers — tablica
+# • subscribe() — dodaje wpis do tablicy
+# • unsubscribe() — usuwa wpis z tablicy
+# • publish() — przechodzi w pętli przez subskrybentów i wywołuje przekazane przez nich metody.
+# Wszystkie trzy metody potrzebują parametru type, ponieważ wydawca może zgłosić kilka różnych zdarzeń
+# (publikację gazety lub magazynu), a subskrybenci mogą zdecydować się na otrzymywanie powiadomień tylko o jednym z nich.
+
+publisher =
+  subscribers:
+    any: []
+  subscribe: (fn, type) ->
+    type = type or 'any'
+    if typeof @subscribers[type] is 'undefined'
+      @subscribers[type] = []
+    @subscribers[type].push(fn)
+  unsubscribe: (fn, type) ->
+    @visitSubscribers('unsubscribe', fn, type)
+  publish: (publication, type) ->
+    @visitSubscribers('publish', publication, type)
+  visitSubscribers: (action, arg, type) ->
+    pubtype = type or 'any'
+    subs = @subscribers[pubtype]
+    if subs
+      for sub in subs
+        if action is 'publish'
+          sub(arg)
+        else
+          if sub is arg
+            subs.splice(sub, 1)
+
+# funkcja która przyjmuje obiekt i zamienia go w obiekt publikujący przez skopiowanie wszystkich ogólnych metod dotyczących publikacji
+makePublisher = (o) ->
+  o.subscribers = any: []
+  for i of publisher
+    if typeof publisher[i] is 'function'
+      o[i] = publisher[i]
+
+# paper, który będzie publikował gazetę i magazyn
+paper =
+  daily: ->
+    # log @publish
+    @publish("ciekawy news")
+  monthly: ->
+    @publish("interesującą analizę", "magazyn")
+
+# robimy z obiektu wydawcę
+makePublisher(paper)
+
+# subskrybent o nazwie joe
+joe =
+  drinkCoffee: (paper) ->
+    log "Właśnie przeczytałem #{daily()}"
+  sundayPreNap: (monthly) ->
+    log "Chyba zasnę, czytając #{monthly()}"
+
+#joe zgłasza się jako subskrybent do paper
+publisher.subscribe(joe.drinkCoffee)
+publisher.subscribe(joe.sundayPreNap, 'magazyn')
+log publisher.subscribers
+
+
+paper.daily()
+paper.monthly()
+
+# SHIT ABOVE DOES NOT WORK - makePublisher - this subscribers is not the same
+
+
+class PlayerObserver
+  constructor: (@name, @key, points, fire) ->
+    @points = 0
+    @fire('newplayer', @)
+PlayerObserver::play = ->
+  @points += 1
+  @fire('play', @)
+
+scoreboardObserver =
+  update: (score) ->
+    for own i,v of score
+      log i,": ", v
+
+publisherObserver =
+    subscribers: any: []
+    on: (type, fn, context) ->
+      type = type or 'any'
+      fn = if typeof fn is 'function' then fn else context[fn]
+      @subscribers[type] = [] if typeof @subscribers[type] is 'undefined'
+      @subscribers[type].push({fn: fn, context: context || @})
+    remove: (type, fn, context) ->
+      @visitSubscribers('unsubscribe', type, fn, context)
+    fire: (type, publication) ->
+      @visitSubscribers('publish', type, publication)
+    visitSubscribers: (action, type, arg, context) ->
+      pubtype = type or 'any'
+      subs = @subscribers[pubtype]
+      for sub of subs
+        if action is 'publish'
+          sub.fn.call(sub.context, arg)
+        else
+          if sub.fn is arg and sub.context is context
+            subs.splice(sub, 1)
+
+gameObserver =
+  keys: {}
+  addPlayer: (player) ->
+    key = player.key.toString().charCodeAt(0)
+    @keys[key] = player
+  handleKeypress: (key) ->
+    if game.keys[key]
+      game.keys.play()
+    if key is '0'
+      mediator.players.guest.play()
+  handlePlay: (player) ->
+    players: @keys
+    score: {}
+    for i of players
+      if players.hasOwnProperty(i)
+        score[players[i].name] = players[i].startingPoints
+    @fire('scorechange', score)
+
+# # dynamiczne tworzenie tylu obiektów graczy (po naciśnięciu klawiszy), ile zostanie zażądanych przez grających
+# while 1
+#   playerName = prompt('podaj imię gracza')
+#   break if !playerName
+#   while 1
+#     key = prompt("Klawisz dla gracza #{playerName} ?")
+#     break if key
+#   new Player(playername, key)
+
+
+# State Pattern   *****************************************   *******************************************
+# page 131
+
+
+class BankAccountManager
+  constructor: (currentState) ->
+    @currentState = new GoodStandingState(@)
+BankAccountManager::Deposit = (amount) ->
+  @currentState.Deposit(amount)
+BankAccountManager::Withdraw = (amount) ->
+  @currentState.Withdraw(amount)
+BankAccountManager::addToBalance = (amount) ->
+  @balance += amount
+BankAccountManager::getBalance = ->
+  @balance
+BankAccountManager::moveToState = (newState) ->
+  @currentState = new State
 
 
 
+
+
+
+
+
+
+
+
+# DOM i wzorce dotyczące przeglądarek ...171............................................................................
+
+# Skrypty wykorzystujące DOM ............172
+# Dostęp do DOM .........................173
+# Modyfikacja DOM .......................174
+# Zdarzenia .............................175
+# Obsługa zdarzeń .......................175
+# Delegacja zdarzeń .....................177
+# Długo działające skrypty ..............178
+# Funkcja setTimeout() ..................178
+# Skrypty obliczeniowe ..................179
+# Komunikacja z serwerem ................179
+# Obiekt XMLHttpRequest .................180
+# JSONP .................................181
+# Ramki i wywołania jako obrazy .........184
+# Serwowanie kodu JavaScript klientom ...184
+# Łączenie skryptów .....................184
+# Minifikacja i kompresja ...............185
+# Nagłówek Expires ......................185
+# Wykorzystanie CDN .....................186
+# Strategie wczytywania skryptów ........186
+# Lokalizacja elementu <script> .........187
+# Wysyłanie pliku HTML fragmentami ......188
+# Dynamiczne elementy <script>
+# zapewniające nieblokujące pobieranie ..189
+# Wczytywanie leniwe ....................190
+# Wczytywanie na żądanie ................191
+# Wstępne wczytywanie kodu JavaScript ...192
+
+
+# STR 182 zrobić sobie lepsze XO - tuning + smartPlay + beauty => na stronke
 
 
 
