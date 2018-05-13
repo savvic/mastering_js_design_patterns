@@ -149,6 +149,7 @@ log theTournament
 religion = require './religion'
 {watery} = require './religion'
 
+log religion
 log watery
 log religion.watery
 
@@ -193,8 +194,8 @@ CarMaker.factory = (type) ->
   constr = type
   if typeof CarMaker[constr] isnt "function"
     throw
-      # {name: 'Error', message: "#{constr} nie istnieje"}
-      log "Error #{constr} nie istnieje"
+      {name: 'Error', message: "#{constr} nie istnieje"}
+      # log "Error #{constr} nie istnieje"
   if typeof CarMaker[constr]::drive isnt "function"
     CarMaker[constr].prototype = new CarMaker
   newCar = new CarMaker[constr]
@@ -1331,6 +1332,10 @@ gameObserver =
 # State Pattern   *****************************************   *******************************************
 # page 131
 
+# Keeping track of the state is a typical problem in most applications. When the transitions between states is complex,
+# then wrapping it up in a state pattern is one method of simplifying things. It is also possible to build up a simple
+# workflow by registering events as sequential.
+
 
 class BankAccountManager
   constructor: (currentState) ->
@@ -1346,13 +1351,159 @@ BankAccountManager::getBalance = ->
 BankAccountManager::moveToState = (newState) ->
   @currentState = new State
 
+class GoodStandingState
+  constructor: (@manager) ->
+GoodStandingState::Deposit = (amount) ->
+  @manager.addToBalance(amount)
+GoodStandingState::Withdraw = (amount) ->
+  @manager.moveToState(new OverdrawnState(@manager)) if @manager.getBalance < amount
+  @manager.addToBalance(-1 * amount)
+
+class OverdrawnState
+  constructor: (@manager) ->
+OverdrawnState::Deposit = (amount) ->
+  @manager.addToBalance(amount)
+  @manager.moveToState(new GoodStandingState(@manager)) if @manager.getBalance() > 0
+OverdrawnState::Withdraw = (amount) ->
+  @manager.moveToState(new OnHold(@manager))
+  throw "Cannot withdraw money from an already overdrawn bank account"
+
+class OnHold
+  constructor: (@manager) ->
+OnHold::Deposit = (amount) ->
+  @manager.addToBalance(amount)
+  throw "Your account is on hold and you must go to the bank to resolve the issue"
+OnHold::Withdraw = (amount) ->
+  throw "Your account is on hold and you must go to the bank to resolve the issue"
 
 
+# Strategy Pattern   *****************************************   *******************************************
+# page 135
+
+# strategy pattern, the method signature for each strategy should be the same
+
+class TravelResult
+  constructor: (@durationDays, @probabilityOfDeath, @cost) ->
+  log @durationDays, @probabilityOfDeath, @cost
+
+class SeaGoingVessel
+SeaGoingVessel::travel = (source, destination) ->
+  new TravelResult(15, .25, 500)
+
+class Horse
+Horse::travel = (source, destination) ->
+  new TravelResult(30, .25, 50)
+
+class Walk
+Walk::travel = (source, destination) ->
+  new TravelResult(150, .55, 0)
+
+class GetCurrentBalance
+  constructor: (@bal) ->
+GetCurrentBalance::getBal = -> @bal
 
 
+currentMoney = new GetCurrentBalance(501)
+log currentMoney.bal
+if currentMoney.bal > 500
+  strat = new SeaGoingVessel
+else if currentMoney.bal > 50
+  strat = new Horse
+else
+  strat = new Walk
+
+travelResult = strat.travel()
+log travelResult
 
 
+# Template Pattern   *****************************************   *******************************************
+# page 138
 
+
+class BasicBeer
+  constructor: (@name) ->
+  whatsTheName: -> log @name
+BasicBeer::create = ->
+  @addIngredients()
+  @stir()
+  @ferment()
+  @test()
+  if @testingPassed()
+    @distribute()
+BasicBeer::addIngredients = ->
+  throw "Add ingredients needs to be implemented"
+BasicBeer::stir = -> log 'stiring'
+BasicBeer::ferment = -> log 'let stand for 30 days'
+BasicBeer::test = -> log 'drink a cup to taste it'
+BasicBeer::testingPassed = ->
+  throw "Conditions to pass a test must be implemented"
+BasicBeer::distribute = -> log 'place beer in 50l casks'
+
+
+class RaspberryBeer extends BasicBeer
+RaspberryBeer::addIngredients = -> log 'RaspberryBeer ingredients'
+RaspberryBeer::testingPassed = -> log 'RaspberryBeer passed the test'
+
+ras = new RaspberryBeer
+ras.addIngredients()
+ras.test()
+ras.whatsTheName()
+bb = new BasicBeer('basicBeer')
+bb.whatsTheName()
+
+
+# Template Pattern   *****************************************   *******************************************
+# page 142
+
+
+class Knight
+  @_type = 'Knight'
+Knight::printName = ->
+  log 'Knight'
+Knight::visit = (visitor) ->
+  log "this is #{@} and #{Knight._type}"
+  visitor.visit(@)
+
+class Archer
+  @_type = 'Archer'
+Archer::printName = ->
+  log 'Archer'
+Archer::visit = (visitor) ->
+  visitor.visit(@)
+
+collection = []
+collection.push(new Knight)
+collection.push(new Archer)
+
+for i in collection
+  if typeof i is 'Knight'
+    i.printName()
+    log 'Knight of typeof'
+  else if i._type is 'Knight'
+    i.printName()
+    log 'Knight of _type'
+  else if i instanceof Knight
+    i.printName()
+    log 'Knight of an instanceof'
+  else
+    log 'not a Knight'
+
+class SelectiveNamePrinterVisitor
+SelectiveNamePrinterVisitor::visit = (memberOfArmy) ->
+  log memberOfArmy
+  if memberOfArmy._type is 'Knight'
+    @visitKnight(memberOfArmy)
+  else if memberOfArmy instanceof Knight
+    log 'visitor knight from the instanceof'
+    @visitKnight(memberOfArmy)
+  else
+    log 'Not a Knight'
+SelectiveNamePrinterVisitor::visitKnight = (memberOfArmy) ->
+  memberOfArmy.printName()
+
+visitor = new SelectiveNamePrinterVisitor
+for i in collection
+  i.visit(visitor)
 
 
 
@@ -1387,6 +1538,174 @@ BankAccountManager::moveToState = (newState) ->
 
 
 # STR 182 zrobić sobie lepsze XO - tuning + smartPlay + beauty => na stronke
+
+
+#   *****************************************                          *******************************************
+#   **************************************     FUNCTIONAL PROGRAMMING     ****************************************
+#   *****************************************                          *******************************************
+
+
+class HamiltonianTourOptions
+  onTourStart: -> log 'start tour'
+  onEntryToAttraction: (cityname) -> log "I'm delighted to be in #{cityname}"
+  onExitFromAttraction: -> log 'exit attraction'
+  onTourCompletion: -> log 'finish tour'
+
+class HamiltonianTour
+  constructor: (@options) ->
+
+HamiltonianTour::StartTour = ->
+  if @options.onTourStart and typeof @options.onTourStart is "function"
+    @options.onTourStart()
+    @VisitAttraction("King's Landing")
+    @VisitAttraction("Winterfell")
+    @VisitAttraction("Mountains of Dorne")
+    @VisitAttraction("Eyrie")
+  if @options.onTourCompletion and typeof @options.onTourCompletion is "function"
+    @options.onTourCompletion()
+
+HamiltonianTour::VisitAttraction = (AttractionName) ->
+  if @options.onEntryToAttraction and typeof @options.onEntryToAttraction is "function"
+    @options.onEntryToAttraction(AttractionName)
+  if @options.onExitFromAttraction and typeof @options.onExitFromAttraction is "function"
+    @options.onExitFromAttraction(AttractionName)
+
+tour = new HamiltonianTour(new HamiltonianTourOptions)
+tour.StartTour()
+
+
+# adding a simple filtering method to the array object
+
+# custom map
+Array::where = (inclusionTest) ->
+  results = []
+  i = 0
+  while i < @length
+    if inclusionTest(@[i])
+      results.push @[i]
+    i++
+  results
+
+itemz = [1,2,3,4,5,6,7,8,9,10]
+log itemz.where((thing) -> thing % 2 is 0).where((thing) -> thing % 3 is 0)
+
+# method of returning a modified version of the original object without changing the original is known as a fluent interface
+
+# custom filter
+Array::select = (projection) ->
+  results = []
+  i = 0
+  while i < @length
+    results.push projection(@[i])
+    i++
+  results
+
+children = [
+  { id: 1, Name: "Rob" }
+  { id: 2, Name: "Sansa" }
+  { id: 3, Name: "Arya" }
+  { id: 4, Name: "Brandon" }
+  { id: 5, Name: "Rickon" }]
+
+children.where((x) -> x.id % 2 is 0).select((x) -> log x.Name)
+
+# Accumulators page 158 - jakiś kurwa bezsens [ale chodzi o reduce]
+
+peasants = [
+  {name: "Jory Cassel", taxesOwed: 11, bankBalance: 50}
+  {name: "Vardis Egen", taxesOwed: 5, bankBalance: 20}]
+
+projectionFunc = (item) ->
+  Math.min(item.taxesOwed, item.bankBalance)
+
+class TaxCollector
+TaxCollector::collect = (items, value, projection) ->
+  if items.length > 1
+    projection(items[0]) + @collect(items.slice(1), value, projection)
+  projection(items[0])
+
+taxCal = new TaxCollector
+log taxCal.collect(peasants, 2, projectionFunc)
+
+# Memoization page 160
+# memoization is a specific term to retain a number of previously calculated values from a function
+
+class Fibonacci
+  constructor: (memoizedValues) ->
+    @memoizedValues = []
+
+Fibonacci::naiveFibo = (n) -> # n = index liczby w ciągu fibonacciego np. 8th liczba w ciągu to 21
+  return 0 if n is 0
+  return 1 if n <= 2
+  return @naiveFibo(n-1) + @naiveFibo(n-2)
+
+Fibonacci::memoizedFibo = (n) ->
+  return 0 if n is 0
+  return 1 if n <= 2
+  if not @memoizedValues[n]
+    @memoizedValues[n] = @memoizedFibo(n - 1) + @memoizedFibo(n - 2)
+    log @memoizedValues
+  @memoizedValues[n]
+
+fib = new Fibonacci
+log fib.naiveFibo(6)
+log fib.memoizedFibo(6)
+
+# ****************************   PROMISE   *******************************************************
+
+amIHappy = true
+
+willGetReward = new Promise (resolve, reject) ->
+  if amIHappy
+    phone =
+      make: 'iPhone'
+      model: 'X'
+    log "I'll buy you #{phone.make} #{phone.model}"
+    resolve phone
+  else
+    reason = new Error 'I am not too happy'
+    reject reason
+
+# consuming promise
+
+askMe_1 = ->
+  willGetReward
+    .then (fulfilled) -> log fulfilled
+    .catch (err) -> log err.message
+
+askMe_1()
+
+showOff_1 = (phone) ->
+  new Promise (resolve, reject) ->
+    message = "Hey friend I have a new #{phone.make} #{phone.model}"
+    resolve message
+
+# We didn't call the reject. It's optional. We can shorten this sample like using Promise.resolve instead.
+
+showOff_2 = (phone) ->
+  message = "Hey friend I have a new #{phone.make} #{phone.model}"
+  Promise.resolve(message)
+
+askMe_2 = ->
+  try
+    log 'before asking 1'
+    await phone = willGetReward
+    await message = showOff_2(phone)
+    log message
+    log 'after asking 1'
+  catch err
+    log err.message
+    log 'after asking 2'
+
+do => await askMe_2()
+
+
+
+
+
+
+
+
 
 
 
