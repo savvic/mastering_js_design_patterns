@@ -1651,6 +1651,38 @@ fib = new Fibonacci
 log fib.naiveFibo(6)
 log fib.memoizedFibo(6)
 
+# Lazy Loading
+
+class Bread
+  constructor: (@breadType) ->
+    log "Bread #{@breadType} created"
+
+class Bakery
+  constructor: (requiredBreads) ->
+    @requiredBreads = []
+Bakery::orderBreadType = (breadType) ->
+  @requiredBreads.push(breadType)
+Bakery::pickupBread = (breadType) ->
+  log "Pickup of bread #{breadType} requested"
+  @createBreads() if not @breads
+  for i in @breads
+    if i.breadType is breadType
+      return i
+Bakery::createBreads = ->
+  @breads = []
+  for i in @requiredBreads
+    @breads.push new Bread i
+
+
+bakery = new Bakery
+bakery.orderBreadType("Brioche")
+bakery.orderBreadType("Anadama bread")
+bakery.orderBreadType("Chapati")
+bakery.orderBreadType("Focaccia")
+
+log "required Breads are #{bakery.requiredBreads}"
+log bakery.pickupBread("Brioche").breadType + " pickedup"
+
 # ****************************   PROMISE   *******************************************************
 
 amIHappy = true
@@ -1698,6 +1730,137 @@ askMe_2 = ->
     log 'after asking 2'
 
 do => await askMe_2()
+
+
+# ****************************   CLOSURE   *******************************************************
+
+
+showHelp = (help) ->
+  log help
+
+makeHelpCallback = (help) ->
+  return () -> showHelp(help)
+
+setupHelp = ->
+  helpText = [
+      {'id': 'email', 'help': 'Your e-mail address'},
+      {'id': 'name', 'help': 'Your full name'},
+      {'id': 'age', 'help': 'Your age (you must be over 16)'}
+    ]
+  for i in helpText
+    item = i
+    log "#{item.id} is #{makeHelpCallback(item.help)}"
+
+setupHelp()
+
+
+# ****************************   DEPENDENCY INJECTION   ********************************************
+# medium Maciek Przybylski - dependency injection in javascript
+
+injector =
+  dependencies: {}
+  register: (key, value) ->
+    @dependencies[key] = value
+  resolve: (deps, func, scope) ->
+    args = []
+    for i in deps
+      if @dependencies[i]
+        args.push @dependencies[i]
+      else
+        throw new Error "Can't resolve #{i}"
+    () ->
+      func.apply scope or {}, args.concat(Array::slice.call(arguments, 0))
+
+# # unit test:
+
+# doSth = injector.resolve ['service', 'router'],
+#   (service, router, other) ->
+#     expect(service().name).to.be('Service')
+#     expect(router().name).to.be('Router')
+#     expect(other).to.be('Other')
+# doSth('Other')
+
+
+
+# MVC, MVP, MVVM - model view controller - 169, presenter - 178, viewModel - 183
+
+
+# Object.observe
+
+# modelU = {}
+# Object.observe modelU, (changes) ->
+#   changes.forEach (change) ->
+#     log "a #{change.type} occured on #{change.name}"
+#   if change.type is "update"
+#     log "the old value was #{change.oldValue}"
+
+
+# modelU.item = 7
+# modelU.item = 8
+# delete modelU.item
+
+# jQuery extension:
+
+# do ($=jQuery) ->
+#   $.fn.yeller = ->
+#     @each (_, item) ->
+#       $(item).val($(item).val().toUpperCase())
+#       @
+
+
+#   **********************************   Messaging   *************************************
+
+# 1. Commands
+# 2. Events
+# 3. Request-reply (RabbitMQ)
+
+class CowMailBus
+  constructor: (@requestor) ->
+    @responder = new CowMailResponder(@)
+# process.nextTick, which simply defers a function to the next time through the event loop
+CowMailBus::send = (message) ->
+  that = @
+  if message._from is 'requestor'
+    process.nextTick = ->
+      that.responder.process.message(message)
+  else
+    process.nextTick = ->
+      that.requestor.process.message(message)
+
+class CowMailRequestor
+CowMailRequestor::request = ->
+  message =
+    _date: new Date()
+    _from: 'requestor'
+    _correlationID: new Guid()
+    body: "invade moat Collin"
+  bus = new CowMailBus
+  bus.send(message)
+CowMailRequestor::processMessage = (message) ->
+  dir message
+
+class CowMailResponder
+  constructor: (bus) ->
+CowMailResponder::processmessage = (message) ->
+  response =
+    _date: new Date()
+    _from: 'responder'
+    _correlationID: message._correlationID
+    body: "ok, invaded"
+  @bus.send(response)
+
+
+# 4. Publish-subscribe
+
+
+
+
+
+
+
+
+
+
 
 
 
