@@ -14,6 +14,7 @@ strFile = './string.txt'
 EventEmmiter = require 'events'
 server = require('http').createServer()
 pry = require 'pry'
+assert = require 'assert'
 
 after = (ms, fn) -> setTimeout(fn, ms)
 
@@ -1808,69 +1809,274 @@ injector =
 #       @
 
 
-#   **********************************   Messaging   *************************************
+#   ********************************************   MESSAGING   *****************************************************
 
 # 1. Commands
 # 2. Events
-# 3. Request-reply (RabbitMQ)
+# 3. Request-reply (RabbitMQ = out of process)
+
+# A bus is simply a distribution mechanism for messages. It can be implemented in process, as we've done here, or out of process.
 
 class CowMailBus
   constructor: (@requestor) ->
     @responder = new CowMailResponder(@)
+    @responders = []
 # process.nextTick, which simply defers a function to the next time through the event loop
 CowMailBus::send = (message) ->
   that = @
   if message._from is 'requestor'
     process.nextTick = ->
-      that.responder.process.message(message)
+      that.responder.processMessage(message)
   else
     process.nextTick = ->
-      that.requestor.process.message(message)
+      that.requestor.processMessage(message)
 
 class CowMailRequestor
+  constructor: (@bus) ->
 CowMailRequestor::request = ->
   message =
     _date: new Date()
     _from: 'requestor'
-    _correlationID: new Guid()
+    _correlationID: Math.ceil Math.random() * 100000
     body: "invade moat Collin"
-  bus = new CowMailBus
+  # bus = new CowMailBus
   bus.send(message)
 CowMailRequestor::processMessage = (message) ->
   dir message
 
 class CowMailResponder
   constructor: (bus) ->
-CowMailResponder::processmessage = (message) ->
+CowMailResponder::processMessage = (message) ->
   response =
     _date: new Date()
     _from: 'responder'
     _correlationID: message._correlationID
+    _messageName: 'kingdomInvaded'
     body: "ok, invaded"
-  @bus.send(response)
+  # @bus.send(response)
+  @bus.publish(response)
+  log 'reply published'
 
 
 # 4. Publish-subscribe
 
+CowMailBus::subscribe = (messageName, subscriber) ->
+  @responders.push({messageName: messageName, subscriber: subscriber})
+CowMailBus::publish = (message) ->
+  for i in @responders
+    if @i.messageName is message._messageName
+      do (b=@i) -> process.nextTick () ->
+        b.subscriber.processMessage(message)
+
+class TestResponder
+TestResponder::processMessage = (message) ->
+  log 'test responder got the message'
+
+bus = new CowMailBus
+bus.subscribe("KingdomInvaded", new TestResponder())
+bus.subscribe("KingdomInvaded", new TestResponder())
+requestor = new CowMailRequestor(bus)
+requestor.request()
 
 
+# Fan out and fan in
+# fan-out-and-in approach can be used to distribute a calculation over a number of cores through the use of web workers
+
+class Combiner
+  constructor: (waitingForChunks) ->
+    @waitingForChunks = 0
+
+Combiner::combine = (ingredients) ->
+  log 'starting combination'
+  if ingredients.length > 10
+    for i in Math.ceil(ingredients/2)
+      @waitingForChunks++
+      log "dispatched chanks count at #{@waitingForChunks}"
+      worker = new Worker("FanOutInWebWorker.js")
+      worker.addEventListener('message', (message) => @complete(message))
+      worker.postMessage({ ingredients: ingredients.slice(i, i*2) })
+Combiner::complete = (message) ->
+  @waitingForChunks--
+  log "Outstanding chunks count at: #{@waitingForChunks}"
+  log 'all chunks received' if @waitingForChunks is 0
+
+# The web worker looks like this:
+self = ->
+self.addEventListener = (a,b,c) ->
+
+self.addEventListener('message', (e) ->
+  data = e.data;
+  ingredients = data.ingredients;
+  combinedIngredient = new Westeros.Potion.CombinedIngredient
+  for i in ingredients
+    combinedIngredient.Add(ingredients[i])
+  log("calculating combination")
+  after 2000, combinationComplete
+, false)
+
+combinationComplete = ->
+  log "combination complete"
+  (self).postMessage({ event: 'combinationComplete', result: combinedIngredient })
+
+# Web workers provide a mechanism to do two things at once in a browser.
+# Although a fairly recent innovation, web workers now have good support
+# in mainstream browsers. In effect, a worker is a background thread that can
+# communicate with the main thread using messages. Web workers must be
+# self-contained in a single JavaScript file.
+
+# Fibonacci sequence. The worker process listens for messages like this:
+self.addEventListener('message', (e) ->
+  data = e.data
+  if data.cmd is 'startCalculation'
+    self.postMessage({event: 'calculationStarted'})
+    result = fib(data.parameters.number)
+    self.postMessage({event: 'calculationComplete', result:result})
+, false)
+
+# The subproblems that are farmed out to a number of nodes do not have to be identical
+# problems. However, they should be sufficiently complicated that the cost savings of
+# farming them out is not consumed by the overhead of sending out messages.
 
 
+# 5. Dead-letter queues
+
+# with a message-based system, the command can be moved back to the end of the input queue and tried again whenever
+# it reaches the front of the queue. On the envelope, we write down the number of times the message has been dequeued (processed).
+# Once this dequeue count reaches a limit, such as 5, only then is the message moved into the true error queue.
 
 
+#   ********************************************   TESTING   *****************************************************
 
 
+# Arrange-Act-Assert
+
+class Castle
+  constructor: (@name) ->
+
+class CastleBuilder
+CastleBuilder::buildCastle = (size) ->
+  castle = new Castle('zamek')
+  castle.size = size
+  castle
+
+correctSizeOfCastle = ->
+  castleBuilder = new CastleBuilder
+  expectedSize = 10
+  buildCastle = castleBuilder.buildCastle(10)
+  assertEqual(expectedSize, buildCastle.size)
+
+assertEqual = (expected, actual) ->
+  throw "Got #{actual}, but expected #{expected}" if expected isnt actual
+  log "it's all good with our assertion" if expected is actual
+
+correctSizeOfCastle()
+
+# Fake objects
+
+# 1. Test spies
+
+class spyUpon
+spyUpon::write = (toWrite) ->
+  log toWrite
+  return 7
+
+spyUpon = new spyUpon
+spyUpon._write = spyUpon.write
+spyUpon.write = (arg1)->
+  log "intercepted"
+  @called = true
+  @args = arguments
+  @result = @_write(arg1)
+  @result
+
+log spyUpon.write('hello world')
+log spyUpon.called
+log spyUpon.args
+log spyUpon.result
+
+# 2. Stubs
+
+class Knight
+  constructor: (@credentialFactory) ->
+Knight::presentCredentials = (toRoyalty) ->
+  log "Presenting credentials #{toRoyalty}"
+  @credentialFactory.create()
+
+# This Knight object takes a credentialFactory parameter as part of its constructor.
+# By passing in the object, we decouple the dependency and remove the responsibility
+# for creating a credentialFactory parameter from the knight. We've seen this sort of
+# inversion of control previously and we'll look at it in more detail in the next chapter.
+# This makes our code more modular and it makes testing far easier.
+# Now when we want to test the knight without worrying about how a credential
+# factory works, we can use a fake object, in this case, a stub:
+
+class StubCredentialFactory
+  constructor: (callCounter) ->
+    @callCounter = 0
+StubCredentialFactory::create = ->
+  new SimpleCredentials if @callCounter = 0
+  new ComplicatedCredentials if @callCounter = 1
+  null if @callCounter = 2
+  @callCounter + 1
+
+class SimpleCredentials
+  log 'simple credentials'
+class ComplicatedCredentials
+  log 'complicated credentials'
+
+knight = new Knight new StubCredentialFactory
+# # knight.presentCredentials("Queen Cersei")
+# credentials = knight.presentCredentials("Lord Snow")
+# log credentials
+# assert(credentials is 'SimpleCredentials')
+# credentials = knight.presentCredentials("Queen Cersei")
+# assert(credentials is 'ComplicatedCredentials')
+# credentials = knight.presentCredentials("Lord Stark")
+# assert(credentials is null)
 
 
+# Mock
+
+# The difference between a mock and a stub is where the verification is done. With a stub, our test must check if the state is
+# correct after the act. With a mock object, the responsibility to test the asserts falls to the mock itself.
 
 
+class MockCredentialFactory
+  constructor: (timesCalled) ->
+    @timesCalled = 0
+MockCredentialFactory::create = ->
+  @timesCalled++
+MockCredentialFactory::verify = ->
+  log @timesCalled
+  assert @timesCalled is 3
 
+cF = new MockCredentialFactory
+k = new Knight cF
+credentials = k.presentCredentials("Lord Tomek")
+credentials = k.presentCredentials("Lord Sawicki")
+credentials = k.presentCredentials("Lord TS")
+cF.verify()
 
+# mock library: Sinon, looks like this:
+# var mock = sinon.mock(myAPI);
+# mock.expects("method").once().throws();
 
+# Browser
 
+# A typical test using the PhantomJS and CasperJS libraries that sits on top of the browser might look like this:
+# var casper = require('casper').create();
+# casper.start('http://google.com', function() {
+#   assert.false($("#gbqfq").attr("aria-haspopup"));
+#   $("#gbqfq").val("redis");
+#   assert.true($("#gbqfq").attr("aria-haspopup"));
+# });
 
+# Dependency injection
 
+class UserSomething
+  constructor: (@db, @un) ->
 
+log UserSomething.toString()
 
 
 
